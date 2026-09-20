@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioFlow</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --bg-color: #121212; --primary: #1db954; --surface: #282828; --text: #ffffff; --text-secondary: #b3b3b3; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1f1f1f, #000000); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+        .top-bar { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); }
+        .search-container, .auth-inputs { display: flex; gap: 10px; }
+        input[type="text"], input[type="password"] { padding: 8px 15px; border-radius: 20px; border: none; background: var(--surface); color: var(--text); outline: none; }
+        button, .upload-btn { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover, .upload-btn:hover { transform: scale(1.05); }
+        #file-upload { display: none; }
+        .main-content { display: flex; flex-grow: 1; overflow: hidden; }
+        .sidebar { width: 250px; background: rgba(18, 18, 18, 0.9); padding: 20px; overflow-y: auto; border-right: 1px solid #333; }
+        .playlist-area { flex-grow: 1; padding: 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; align-content: start; }
+        .song-card { background: var(--surface); padding: 15px; border-radius: 10px; cursor: pointer; text-align: center; position: relative; }
+        .song-card:hover { background: #3e3e3e; }
+        .song-card img { width: 100%; border-radius: 8px; margin-bottom: 10px; }
+        .song-card h4 { margin: 5px 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .song-card p { margin: 0; font-size: 12px; color: var(--text-secondary); }
+        .save-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 50%; display: none; }
+        .song-card:hover .save-btn { display: block; }
+        .player-bar { height: 90px; background: #181818; border-top: 1px solid #282828; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
+        .now-playing { display: flex; align-items: center; width: 30%; gap: 15px; }
+        .now-playing img { width: 56px; height: 56px; border-radius: 4px; }
+        .controls-container { width: 40%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .controls { display: flex; gap: 20px; align-items: center; }
+        .controls i { font-size: 20px; color: var(--text-secondary); cursor: pointer; }
+        .controls i:hover { color: white; }
+        .play-btn { font-size: 35px !important; color: white !important; }
+        .progress-container { width: 100%; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+        .progress-bar { flex-grow: 1; height: 4px; background: #535353; border-radius: 2px; cursor: pointer; }
+        .progress { height: 100%; background: var(--primary); width: 0%; border-radius: 2px; pointer-events: none; }
+        .sidebar-item { padding: 10px; cursor: pointer; color: var(--text-secondary); border-radius: 5px; margin-bottom: 5px; }
+        .sidebar-item:hover { background: #282828; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <h2 style="margin: 0; color: var(--primary);">AudioFlow</h2>
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Search the web..." style="width: 250px;">
+            <button onclick="searchMusic()"><i class="fas fa-search"></i></button>
+        </div>
+        
+        <div id="auth-ui" class="auth-inputs">
+            <input type="text" id="username" placeholder="Username" style="width: 100px;">
+            <input type="password" id="password" placeholder="Password" style="width: 100px;">
+            <button onclick="login()">Login</button>
+            <button onclick="register()" style="background: #333;">Sign Up</button>
+        </div>
+        <div id="user-ui" style="display: none; align-items: center; gap: 15px;">
+            <span id="welcome-text" style="font-weight: bold;"></span>
+            <label for="file-upload" class="upload-btn"><i class="fas fa-upload"></i> MP3</label>
+            <input type="file" id="file-upload" accept=".mp3" onchange="uploadFile()">
+            <button onclick="logout()" style="background: #d32f2f;">Logout</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="sidebar">
+            <h3>Library</h3>
+            <div id="local-list"></div>
+            
+            <h3 style="margin-top: 30px;">Playlists</h3>
+            <button onclick="createPlaylist()" style="width: 100%; margin-bottom: 10px; background: #333; font-size: 12px;">+ New Playlist</button>
+            <div id="playlist-list">
+                <p style="font-size:12px; color:#666;">Login to see playlists</p>
+            </div>
+        </div>
+        <div class="playlist-area" id="results-area">
+            <h3 style="grid-column: 1 / -1; color: var(--text-secondary);">Search for songs above or select a playlist.</h3>
+        </div>
+    </div>
+
+    <div class="player-bar">
+        <div class="now-playing">
+            <img id="np-cover" src="https://placehold.co/150x150/282828/white?text=Play" alt="Cover">
+            <div>
+                <div id="np-title" style="font-weight: bold; font-size: 14px;">No track selected</div>
+                <div id="np-artist" style="font-size: 12px; color: var(--text-secondary);">--</div>
+            </div>
+        </div>
+        <div class="controls-container">
+            <div class="controls">
+                <i class="fas fa-step-backward" onclick="prevSong()"></i>
+                <i class="fas fa-play-circle play-btn" id="play-pause-btn" onclick="togglePlay()"></i>
+                <i class="fas fa-step-forward" onclick="nextSong()"></i>
+            </div>
+            <div class="progress-container">
+                <span id="current-time">0:00</span>
+                <div class="progress-bar" id="progress-container" onclick="seek(event)">
+                    <div class="progress" id="progress"></div>
+                </div>
+                <span id="total-time">0:00</span>
+            </div>
+        </div>
+        <div style="width: 30%;"></div>
+    </div>
+
+    <script>
+        let currentAudio = new Audio();
+        let isPlaying = false;
+        let playlist = [];
+        let currentIndex = 0;
+        let userPlaylists = []; // Store IDs for saving
+
+        // --- Initialization ---
+        checkAuth();
+        fetchLocalSongs();
+
+        // --- Authentication ---
+        async function checkAuth() {
+            const res = await fetch('/api/auth/status');
+            const data = await res.json();
+            if (data.logged_in) {
+                document.getElementById('auth-ui').style.display = 'none';
+                document.getElementById('user-ui').style.display = 'flex';
+                document.getElementById('welcome-text').innerText = data.username;
+                fetchPlaylists();
+            } else {
+                document.getElementById('auth-ui').style.display = 'flex';
+                document.getElementById('user-ui').style.display = 'none';
+                document.getElementById('playlist-list').innerHTML = '<p style="font-size:12px; color:#666;">Login to see playlists</p>';
+                userPlaylists = [];
+            }
+        }
+
+        async function register() {
+    const u = document.getElementById('username').value;
+    const p = document.getElementById('password').value;
+    
+    // 1. Check if fields are empty (previously this just failed silently)
+    if(!u || !p) {
+        alert('Please enter both a username and password to sign up.');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/auth/register', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username: u, password: p}) 
+        });
+        
+        const data = await res.json();
+        
+        // 2. Properly handle success vs server errors
+        if (res.ok) {
+            alert("Success! " + data.message + " - You can now click Login.");
+        } else {
+            alert("Notice: " + (data.error || "Registration failed"));
+        }
+    } catch (error) {
+        alert("Network error: Make sure your Flask server is running in the terminal.");
+    }
+}
+
+        async function login() {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            const res = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
+            if (res.ok) { checkAuth(); document.getElementById('password').value = ''; }
+            else alert("Invalid credentials");
+        }
+
+        async function logout() { await fetch('/api/auth/logout'); checkAuth(); }
+
+        // --- Core Functions ---
+        async function fetchLocalSongs() {
+            const res = await fetch('/api/local_songs');
+            const songs = await res.json();
+            const list = document.getElementById('local-list');
+            list.innerHTML = '';
+            songs.forEach(song => {
+                list.innerHTML += `<div class="sidebar-item" onclick='playSong(${JSON.stringify(song)})'>
+                    <i class="fas fa-file-audio" style="margin-right: 10px; color: var(--primary);"></i>${song.title}
+                </div>`;
+            });
+        }
+
+        async function uploadFile() {
+            const file = document.getElementById('file-upload').files[0];
+            if (!file) return;
+            const formData = new FormData(); formData.append('file', file);
+            const res = await fetch('/upload', { method: 'POST', body: formData });
+            if (res.ok) fetchLocalSongs(); else alert("Upload failed");
+        }
+
+        async function searchMusic() {
+            const query = document.getElementById('search-input').value;
+            if (!query) return;
+            document.getElementById('results-area').innerHTML = '<h3 style="grid-column: 1 / -1;">Searching...</h3>';
+            
+            const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            playlist = await res.json();
+            renderGrid(playlist, 'Search Results', true);
+        }
+
+        // --- Playlists ---
+        async function fetchPlaylists() {
+            const res = await fetch('/api/playlists');
+            if(!res.ok) return;
+            userPlaylists = await res.json();
+            const list = document.getElementById('playlist-list');
+            list.innerHTML = '';
+            userPlaylists.forEach(p => {
+                list.innerHTML += `<div class="sidebar-item" onclick="loadPlaylist(${p.id})">
+                    <i class="fas fa-list" style="margin-right: 10px;"></i>${p.name}
+                </div>`;
+            });
+        }
+
+        async function createPlaylist() {
+            if (userPlaylists.length === 0 && document.getElementById('auth-ui').style.display !== 'none') return alert("Login first");
+            const name = prompt("Playlist Name:");
+            if (!name) return;
+            await fetch('/api/playlists', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name})});
+            fetchPlaylists();
+        }
+
+        async function loadPlaylist(id) {
+            const res = await fetch(`/api/playlists/${id}/songs`);
+            if(!res.ok) return;
+            playlist = await res.json();
+            renderGrid(playlist, 'Playlist Queue', false);
+        }
+
+        async function saveToPlaylist(index, event) {
+            event.stopPropagation(); // Prevents song from playing when clicking save
+            if (userPlaylists.length === 0) return alert("Create a playlist first");
+            
+            // Simple prompt using the ID (in a real app, use a custom dropdown modal)
+            let promptText = "Enter Playlist ID to save to:\n";
+            userPlaylists.forEach(p => promptText += `${p.id}: ${p.name}\n`);
+            
+            const pid = prompt(promptText);
+            if (!pid) return;
+            
+            const song = playlist[index];
+            await fetch(`/api/playlists/${pid}/add`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(song)
+            });
+            alert("Saved!");
+        }
+
+        function renderGrid(songs, title, showSaveBtn) {
+            const area = document.getElementById('results-area');
+            area.innerHTML = `<h3 style="grid-column: 1 / -1;">${title}</h3>`;
+            if (songs.length === 0) area.innerHTML += '<p style="grid-column: 1 / -1;">No tracks found.</p>';
+            
+            songs.forEach((song, index) => {
+                const saveBtnHtml = showSaveBtn ? `<button class="save-btn" onclick="saveToPlaylist(${index}, event)"><i class="fas fa-plus"></i></button>` : '';
+                area.innerHTML += `
+                    <div class="song-card" onclick='playFromGrid(${index})'>
+                        ${saveBtnHtml}
+                        <img src="${song.cover}" alt="cover">
+                        <h4>${song.title}</h4>
+                        <p>${song.artist}</p>
+                    </div>
+                `;
+            });
+        }
+
+        // --- Player Controls ---
+        function playFromGrid(index) { currentIndex = index; playSong(playlist[currentIndex]); }
+
+        function playSong(song) {
+    currentAudio.src = song.url;
+    
+    // Attempt to play and catch any browser/network errors
+    currentAudio.play().then(() => {
+        isPlaying = true;
+        document.getElementById('play-pause-btn').className = 'fas fa-pause-circle play-btn';
+    }).catch(error => {
+        console.error("Audio playback failed:", error);
+        alert("Cannot play this track. Check the console for details, or try disabling your adblocker.");
+    });
+
+    document.getElementById('np-title').innerText = song.title;
+    document.getElementById('np-artist').innerText = song.artist || 'Unknown';
+    document.getElementById('np-cover').src = song.cover || 'https://placehold.co/150x150/1db954/white?text=Music';
+}
+
+        function togglePlay() {
+            if (!currentAudio.src) return;
+            if (isPlaying) { currentAudio.pause(); document.getElementById('play-pause-btn').className = 'fas fa-play-circle play-btn'; }
+            else { currentAudio.play(); document.getElementById('play-pause-btn').className = 'fas fa-pause-circle play-btn'; }
+            isPlaying = !isPlaying;
+        }
+
+        function nextSong() { if (playlist.length > 0) { currentIndex = (currentIndex + 1) % playlist.length; playSong(playlist[currentIndex]); } }
+        function prevSong() { if (playlist.length > 0) { currentIndex = (currentIndex - 1 + playlist.length) % playlist.length; playSong(playlist[currentIndex]); } }
+
+        currentAudio.addEventListener('timeupdate', () => {
+            document.getElementById('progress').style.width = `${(currentAudio.currentTime / currentAudio.duration) * 100}%`;
+            document.getElementById('current-time').innerText = formatTime(currentAudio.currentTime);
+            if (currentAudio.duration) document.getElementById('total-time').innerText = formatTime(currentAudio.duration);
+        });
+
+        function seek(e) {
+            if (!currentAudio.src) return;
+            currentAudio.currentTime = (e.offsetX / document.getElementById('progress-container').clientWidth) * currentAudio.duration;
+        }
+
+        function formatTime(s) { const min = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${min}:${sec < 10 ? '0' : ''}${sec}`; }
+        currentAudio.addEventListener('ended', nextSong);
+    </script>
+</body>
+</html>

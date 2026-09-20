@@ -1,0 +1,31 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Database (NEVER commit your database as it contains user hashes)
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# Uploaded MP3 files
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Environment variables (if you add a .env file later)
+.env
+.flaskenv
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
